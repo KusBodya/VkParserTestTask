@@ -1,0 +1,51 @@
+﻿# build artifacts
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+logs/
+
+# Rider / Visual Studio / IDE
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+*.DotSettings.user
+
+# tool caches
+*/rider.project.*
+*.nuget.cache
+project.lock.json
+*.pdb
+
+# OS noise
+Thumbs.db
+ehthumbs.db
+.DS_Store
+Icon?
+Desktop.ini
+
+# secrets and local config
+appsettings.*.local.json
+*.secret.json
+*.env
+.env*
+
+# docker / compose overrides
+docker-compose.override.yml
+*.iml
+
+# generated swagger, backups, dumps
+*.generated.cs
+*.bk
+*.bak
+*.tmp
+*.swp
+
+# coverage / reports
+coverage*/
+*.coverage
+*.coveragexml
+TestResults/

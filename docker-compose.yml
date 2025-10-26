@@ -1,0 +1,45 @@
+﻿version: "3.9"
+services:
+  postgres:
+    image: postgres:16
+    container_name: vk_leads_pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vk_leads
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_vk_leads:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vk_leads"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:9.0
+    working_dir: /src
+    volumes:
+      - ./:/src                            
+    command: ["dotnet", "run", "--project", "Api", "--no-launch-profile"]
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://0.0.0.0:8080
+      VKLEADS_POSTGRES: Host=postgres;Port=5432;Database=vk_leads;Username=postgres;Password=postgres
+      DeepInfra__ApiKey: ${DEEPINFRA_API_KEY}
+      DeepInfra__Model: google/gemini-2.0-flash-exp
+      DeepInfra__BaseUri: https://api.deepinfra.com/v1/openai/
+      Vk__City: "Москва"
+      Vk__LookbackHours: 12
+      Vk__PerKeywordLimit: 50
+      Vk__AccessToken: ${VK_ACCESS_TOKEN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata_vk_leads:
