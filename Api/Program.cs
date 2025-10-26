@@ -52,8 +52,7 @@ public class Program
 
         // Background ingestion pipeline
         builder.Services.AddHostedService<LeadIngestionBackgroundService>();
-
-        // CORS (на разработку — всё разрешено; на проде сузить)
+        
         builder.Services.AddCors(o =>
         {
             o.AddDefaultPolicy(p => p
