@@ -1,4 +1,6 @@
-﻿namespace Services.Phones;
+﻿using Services.Classification;
+
+namespace Services.Phones;
 
 public interface IRealtyClassifier
 {

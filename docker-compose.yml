@@ -21,20 +21,19 @@ services:
     image: mcr.microsoft.com/dotnet/sdk:9.0
     working_dir: /src
     volumes:
-      - ./:/src                            
+      - ./:/src
     command: ["dotnet", "run", "--project", "Api", "--no-launch-profile"]
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://0.0.0.0:8080
       VKLEADS_POSTGRES: Host=postgres;Port=5432;Database=vk_leads;Username=postgres;Password=postgres
-      DeepInfra__ApiKey: ${DEEPINFRA_API_KEY}
-      DeepInfra__Model: google/gemini-2.0-flash-exp
+      DeepInfra__Model: deepseek-ai/DeepSeek-R1-Distill-Llama-70B
       DeepInfra__BaseUri: https://api.deepinfra.com/v1/openai/
       Vk__City: "Москва"
       Vk__LookbackHours: 12
       Vk__PerKeywordLimit: 50
-      Vk__AccessToken: ${VK_ACCESS_TOKEN}
+      Vk__AccessToken: 82b1d68f82b1d68f82b1d68ff182d32d4d882b182b1d68fea3cc81586a9bc86131038d9
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,3 +42,6 @@ services:
 
 volumes:
   pgdata_vk_leads:
+
+
+

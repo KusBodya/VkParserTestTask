@@ -1,6 +1,6 @@
-﻿namespace Domain.DTO;
+namespace Domain.DTO;
 
-/// <summary>Контракт ответа API по ТЗ.</summary>
+/// <summary>Упрощённый DTO лида, который возвращает API.</summary>
 public sealed record LeadDto(
     string Phone,
     string PostUrl,

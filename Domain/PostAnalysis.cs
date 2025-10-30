@@ -1,12 +1,13 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using Domain.Enums;
 
 namespace Domain;
 
-/// <summary>Результат LLM-классификации поста (DeepInfra).</summary>
+/// <summary>Результат анализа поста языковой моделью DeepInfra.</summary>
 public class PostAnalysis
 {
-    [Key] public Guid Id { get; set; } = Guid.NewGuid();
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid PostIdFk { get; set; }
     public VkPost? Post { get; set; }
@@ -17,19 +18,19 @@ public class PostAnalysis
     public IntentType Intent { get; set; } = IntentType.Unknown;
     public PropertyType PropertyType { get; set; } = PropertyType.Unknown;
 
-    /// <summary>Все найденные телефоны (как в тексте).</summary>
+    /// <summary>Сырые телефоны, извлечённые из текста поста.</summary>
     public List<string> PhonesRaw { get; set; } = new();
 
-    /// <summary>Нормализованные телефоны (E.164).</summary>
+    /// <summary>Телефоны в формате E.164.</summary>
     public List<string> PhonesE164 { get; set; } = new();
 
-    /// <summary>Трассировка: промпт/ответ модели (для отладки).</summary>
+    /// <summary>Диагностическая информация о работе модели.</summary>
     public string? ModelTrace { get; set; }
 
-    /// <summary>Название модели.</summary>
+    /// <summary>Название модели, использованной для классификации.</summary>
     public string? ModelName { get; set; }
 
-    /// <summary>Провайдер (по умолчанию DeepInfra).</summary>
+    /// <summary>Поставщик модели, применившейся при анализе.</summary>
     public string Provider { get; set; } = "DeepInfra";
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

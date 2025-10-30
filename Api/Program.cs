@@ -1,6 +1,8 @@
-﻿using Domain.DTO;
+﻿using System.Text;
+using Domain.DTO;
 using Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Services.Classification;
 using Services.DeepInfra;
 using Services.Phones;
@@ -11,10 +13,14 @@ using Services.Vk;
 
 namespace Api;
 
+/// <summary>Точка входа в веб-API лидогенератора.</summary>
 public class Program
 {
     public static async Task Main(string[] args)
     {
+        // VkNet relies on legacy code pages (cp1251); register them once for encoding support.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
         var builder = WebApplication.CreateBuilder(args);
 
         // ------------ Configuration ------------
@@ -32,7 +38,13 @@ public class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
 
-        builder.Services.AddDbContext<LeadsDbContext>(opt => opt.UseNpgsql(connectionString));
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+        dataSourceBuilder.EnableDynamicJson();
+        var dataSource = dataSourceBuilder.Build();
+
+        builder.Services.AddSingleton(dataSource);
+        builder.Services.AddDbContext<LeadsDbContext>(
+            (sp, opt) => opt.UseNpgsql(sp.GetRequiredService<NpgsqlDataSource>()));
 
         // Утилиты телефонов
         builder.Services.AddSingleton<IPhoneExtractor, PhoneExtractor>();
@@ -145,8 +157,7 @@ public class Program
                 return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
             }
         });
-
-        // ------------ Run ------------
+        
         await app.RunAsync();
     }
 }

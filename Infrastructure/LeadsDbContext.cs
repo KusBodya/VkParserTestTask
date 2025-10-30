@@ -1,9 +1,9 @@
-﻿using Domain;
+using Domain;
+using Microsoft.EntityFrameworkCore;
 
 namespace Infrastructure;
 
-using Microsoft.EntityFrameworkCore;
-
+/// <summary>EF Core контекст для хранения авторов, постов, анализов и лидов.</summary>
 public sealed class LeadsDbContext : DbContext
 {
     public DbSet<VkAuthor> Authors => Set<VkAuthor>();
@@ -11,7 +11,8 @@ public sealed class LeadsDbContext : DbContext
     public DbSet<PostAnalysis> Analyses => Set<PostAnalysis>();
     public DbSet<Lead> Leads => Set<Lead>();
 
-    public LeadsDbContext(DbContextOptions<LeadsDbContext> options) : base(options)
+    public LeadsDbContext(DbContextOptions<LeadsDbContext> options)
+        : base(options)
     {
     }
 
@@ -39,6 +40,10 @@ public sealed class LeadsDbContext : DbContext
             .WithMany()
             .HasForeignKey(p => p.AuthorId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<VkPost>()
+            .Property(p => p.Text)
+            .HasColumnType("text");
 
         modelBuilder.Entity<VkPost>()
             .Property(p => p.RawJson)

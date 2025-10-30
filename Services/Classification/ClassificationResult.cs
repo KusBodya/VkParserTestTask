@@ -1,10 +1,15 @@
-﻿using Domain.Enums;
+#nullable enable
 
-namespace Services.Phones;
+using Domain.Enums;
 
+namespace Services.Classification;
+
+/// <summary>Результат классификации поста сервисом DeepInfra.</summary>
 public sealed record ClassificationResult(
     bool IsRelevant,
     float Score,
     IntentType Intent,
-    PropertyType Property
+    PropertyType Property,
+    string? ModelName = null,
+    string? RawJson = null
 );

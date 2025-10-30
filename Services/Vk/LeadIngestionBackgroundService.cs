@@ -1,3 +1,4 @@
+﻿using System.Net;
 using Domain;
 using Domain.Enums;
 using Infrastructure;
@@ -7,10 +8,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Services.Classification;
+using Services.DeepInfra;
 using Services.Phones;
 
 namespace Services.Vk;
 
+/// <summary>Фоновый сервис, ищущий посты во VK и создающий лиды.</summary>
 public sealed class LeadIngestionBackgroundService : BackgroundService
 {
     private readonly IServiceProvider _sp;
@@ -21,6 +24,9 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
     private readonly IPhoneExtractor _phones;
     private readonly IPhoneNormalizer _normalize;
     private readonly VkOptions _vkOpt;
+    private readonly DeepInfraOptions _deepInfraOpt;
+    private bool _classifierConfigured;
+    private bool _warnedClassifierMissing;
 
     public LeadIngestionBackgroundService(
         IServiceProvider sp,
@@ -30,7 +36,8 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
         IRealtyClassifier classifier,
         IPhoneExtractor phoneExtractor,
         IPhoneNormalizer phoneNormalizer,
-        IOptions<VkOptions> vkOptions)
+        IOptions<VkOptions> vkOptions,
+        IOptions<DeepInfraOptions> deepInfraOptions)
     {
         _sp = sp;
         _log = log;
@@ -40,6 +47,8 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
         _phones = phoneExtractor;
         _normalize = phoneNormalizer;
         _vkOpt = vkOptions.Value;
+        _deepInfraOpt = deepInfraOptions.Value;
+        _classifierConfigured = !string.IsNullOrWhiteSpace(_deepInfraOpt.ApiKey);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -75,7 +84,12 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
 
     private async Task RunOnceAsync(CancellationToken ct)
     {
-        var city = _vkOpt.City ?? string.Empty;
+        var rawCity = _vkOpt.City;
+        var city = NormalizeCity(rawCity);
+        if (!string.IsNullOrWhiteSpace(rawCity) && string.IsNullOrEmpty(city))
+        {
+            _log.LogWarning("Configured city value '{CityRaw}' contains unreadable characters and will be ignored.", rawCity);
+        }
         var since = DateTimeOffset.UtcNow.AddHours(-Math.Max(1, _vkOpt.LookbackHours));
         var kw = _keywords.GetKeywords();
 
@@ -122,12 +136,21 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
                 db.Posts.Add(post);
                 await db.SaveChangesAsync(ct);
             }
-
             // Classify relevance (resilient)
+            var classificationEnabled = _classifierConfigured;
+            if (!classificationEnabled && !_warnedClassifierMissing)
+            {
+                _log.LogWarning("DeepInfra classifier is disabled. Falling back to phone-based relevance.");
+                _warnedClassifierMissing = true;
+            }
+
             var cls = new ClassificationResult(false, 0f, IntentType.Unknown, PropertyType.Unknown);
             try
             {
-                cls = await _classifier.ClassifyAsync(rp.Text, ct);
+                if (classificationEnabled)
+                {
+                    cls = await _classifier.ClassifyAsync(rp.Text, ct);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -136,6 +159,22 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
             catch (Exception ex)
             {
                 _log.LogWarning(ex, "Classification failed for post {PostUrl}", rp.PostUrl);
+
+                if (ex is HttpRequestException httpEx)
+                {
+                    if (httpEx.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        _log.LogError("DeepInfra returned 404 for chat completions. Disabling classifier until configuration is fixed (model='{Model}', baseUri='{BaseUri}').", _deepInfraOpt.Model, _deepInfraOpt.BaseUri);
+                        _classifierConfigured = false;
+                    }
+                    else if (httpEx.StatusCode == HttpStatusCode.Unauthorized)
+                    {
+                        _log.LogError("DeepInfra rejected the API key. Disabling classifier until credentials are updated.");
+                        _classifierConfigured = false;
+                    }
+                }
+
+                classificationEnabled = false;
             }
 
             // Phones extraction + normalization
@@ -147,6 +186,11 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
 
+            if (!classificationEnabled && e164.Count > 0 && !cls.IsRelevant)
+            {
+                cls = cls with { IsRelevant = true };
+            }
+
             // Store analysis
             var analysis = new PostAnalysis
             {
@@ -156,7 +200,9 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
                 Intent = cls.Intent,
                 PropertyType = cls.Property,
                 PhonesRaw = rawPhones,
-                PhonesE164 = e164
+                PhonesE164 = e164,
+                ModelName = classificationEnabled ? _deepInfraOpt.Model : cls.ModelName,
+                ModelTrace = cls.RawJson
             };
             db.Analyses.Add(analysis);
 
@@ -184,4 +230,38 @@ public sealed class LeadIngestionBackgroundService : BackgroundService
             await db.SaveChangesAsync(ct);
         }
     }
+
+    private static string NormalizeCity(string? city)
+    {
+        if (string.IsNullOrWhiteSpace(city))
+        {
+            return string.Empty;
+        }
+
+        var cleaned = city.Trim();
+        if (cleaned.Contains('\uFFFD'))
+        {
+            return string.Empty;
+        }
+
+        if (cleaned.Contains('?'))
+        {
+            return string.Empty;
+        }
+
+        return cleaned;
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

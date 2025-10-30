@@ -6,6 +6,7 @@ using VkNet.Model;
 
 namespace Services.Vk;
 
+/// <summary>Обёртка над VkNet для поиска постов по ключевым словам.</summary>
 public sealed class VkNetPostProvider : IVkPostProvider, IDisposable
 {
     private readonly ILogger<VkNetPostProvider> _log;

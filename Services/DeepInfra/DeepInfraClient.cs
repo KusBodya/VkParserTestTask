@@ -1,11 +1,11 @@
-﻿namespace Services.DeepInfra;
-
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-/// <summary>Минимальный OpenAI-совместимый клиент под DeepInfra Chat Completions.</summary>
+namespace Services.DeepInfra;
+
+/// <summary>HTTP-клиент для обращения к DeepInfra Chat Completions.</summary>
 public sealed class DeepInfraClient
 {
     private readonly HttpClient _http;
@@ -18,9 +18,11 @@ public sealed class DeepInfraClient
         _opt = opt.Value;
         _log = log;
 
-        _http.BaseAddress = _opt.BaseUri; // .../v1/openai/
+        _http.BaseAddress = _opt.BaseUri;
         if (!_http.DefaultRequestHeaders.Contains("Authorization"))
+        {
             _http.DefaultRequestHeaders.Add("Authorization", $"Bearer {_opt.ApiKey}");
+        }
     }
 
     public async Task<string> ChatJsonAsync(string system, string user, CancellationToken ct = default)
@@ -47,6 +49,7 @@ public sealed class DeepInfraClient
             .GetProperty("content")
             .GetString();
 
+        _log.LogDebug("DeepInfra response: {Payload}", content);
         return content ?? "{}";
     }
 }

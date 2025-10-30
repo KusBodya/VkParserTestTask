@@ -1,13 +1,14 @@
-﻿using Domain.Enums;
+#nullable enable
+
+using System.Text.Json;
+using Domain.Enums;
+using Microsoft.Extensions.Logging;
 using Services.DeepInfra;
 using Services.Phones;
 
 namespace Services.Classification;
 
-using System.Text.Json;
-using Microsoft.Extensions.Logging;
-
-/// <summary>Классификация релевантности поста через DeepInfra.</summary>
+/// <summary>Классифицирует посты о недвижимости с помощью DeepInfra.</summary>
 public sealed class DeepInfraRealtyClassifier : IRealtyClassifier
 {
     private readonly DeepInfraClient _client;
@@ -23,26 +24,29 @@ public sealed class DeepInfraRealtyClassifier : IRealtyClassifier
     {
         var system = "You are a classifier for Russian real-estate posts. Return strict JSON only.";
         var user = @$"
-    Классифицируй текст объявления о недвижимости. Верни JSON:
-    {{
-            ""is_relevant"": bool,
-            ""score"": float, 
-            ""intent"": ""sell|buy|rent_out|rent_want|unknown"",
-            ""property"": ""apartment|house|room|land|commercial|unknown""
-    }}
-            Текст: <<< {text} >>>";
+Проанализируй объявление и ответь JSON объектом в формате:
+{{
+    ""is_relevant"": true|false,
+    ""score"": число от 0 до 1,
+    ""intent"": ""sell|buy|rent_out|rent_want|unknown"",
+    ""property"": ""apartment|house|room|land|commercial|unknown""
+}}
+Если текст не относится к сделкам с недвижимостью, укажи is_relevant=false.
+Текст объявления: <<< {text} >>>";
 
+        _log.LogInformation("DeepInfra prompt: {Prompt}", user);
         var json = await _client.ChatJsonAsync(system, user, ct);
+        _log.LogInformation("DeepInfra raw JSON: {Json}", json);
 
         try
         {
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            bool rel = root.TryGetProperty("is_relevant", out var r) && r.GetBoolean();
-            float score = root.TryGetProperty("score", out var s) ? (float)s.GetDouble() : 0.0f;
+            var rel = root.TryGetProperty("is_relevant", out var r) && r.GetBoolean();
+            var score = root.TryGetProperty("score", out var s) ? (float)s.GetDouble() : 0f;
 
-            IntentType intent = root.TryGetProperty("intent", out var i)
+            var intent = root.TryGetProperty("intent", out var i)
                 ? i.GetString()?.ToLowerInvariant() switch
                 {
                     "sell" => IntentType.Sell,
@@ -53,7 +57,7 @@ public sealed class DeepInfraRealtyClassifier : IRealtyClassifier
                 }
                 : IntentType.Unknown;
 
-            PropertyType prop = root.TryGetProperty("property", out var p)
+            var property = root.TryGetProperty("property", out var p)
                 ? p.GetString()?.ToLowerInvariant() switch
                 {
                     "apartment" => PropertyType.Apartment,
@@ -65,12 +69,12 @@ public sealed class DeepInfraRealtyClassifier : IRealtyClassifier
                 }
                 : PropertyType.Unknown;
 
-            return new(rel, score, intent, prop);
+            return new ClassificationResult(rel, score, intent, property, null, json);
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Failed to parse DeepInfra JSON: {Json}", json);
-            return new(false, 0f, IntentType.Unknown, PropertyType.Unknown);
+            return new ClassificationResult(false, 0f, IntentType.Unknown, PropertyType.Unknown, null, json);
         }
     }
 }
